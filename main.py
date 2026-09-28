@@ -12,16 +12,13 @@ import torch.nn.functional as F
 import wandb
 import logging
 
-# --- 将所有必要的源代码路径添加到 sys.path ---
 sys.path.append('src/pixelsplat_src')
 sys.path.append('src/mast3r_src')
 sys.path.append('src/mast3r_src/dust3r')
 
-# --- 核心改动：从 torch.utils.data 导入 DataLoader ---
 from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 
-# --- 导入项目模块 ---
 from src.mast3r_src.dust3r.dust3r.losses import L21
 from src.mast3r_src.mast3r.losses import ConfLoss, Regr3D
 import data.scannetpp.scannetpp as scannetpp
@@ -36,7 +33,6 @@ import workspace
 import utils.geometry as geometry
 from utils.fast_matching import find_matches_fast_reciprocal
 
-# ======= gsplat 可选导入 =======
 try:
     from gsplat.rendering import rasterization as gsplat_rasterization
     _GSP_AVAILABLE = True
@@ -44,15 +40,14 @@ except Exception:
     gsplat_rasterization = None
     _GSP_AVAILABLE = False
 
-# ======= 几何/数值/相机辅助 (无改动) =======
 
-def _to_h(p):  # [...,3] -> [...,4]
+def _to_h(p):
     return torch.cat([p, torch.ones_like(p[..., :1])], dim=-1)
 
-def _from_h(p):  # [...,4] -> [...,3]
+def _from_h(p):
     return p[..., :3] / p[..., 3:].clamp_min(1e-6)
 
-def _invert_se3(T):  # [B,4,4]
+def _invert_se3(T):
     R = T[..., :3, :3]
     t = T[..., :3, 3:4]
     Rinv = R.transpose(-1, -2)
@@ -62,9 +57,9 @@ def _invert_se3(T):  # [B,4,4]
     out[..., :3, 3:4] = tinv
     return out
 
-def _transform_points(p, T):  # p: [B,H,W,3], T: [B,4,4]
+def _transform_points(p, T):
     Ph = _to_h(p)
-    Qh = Ph @ T.transpose(-1, -2)  # 右乘
+    Qh = Ph @ T.transpose(-1, -2)
     return _from_h(Qh)
 
 def _ensure_batched_T(T, B, device):
@@ -94,19 +89,15 @@ def _px_to_grid(uv_px, H, W, *, align_corners=False, device=None, dtype=torch.fl
     return (uv_px + 0.5) / norm * 2 - 1
 
 def _fetch_T_wc(ctx, *, device, B, default_conv='c2w'):
-    """鲁棒读取外参，支持多种字段名。"""
     def as_4x4(M):
         return _ensure_batched_T(M, B, device)
-    # 常见 cam->world
     for k in ['camera_pose', 'T_w_c', 'Twc', 'T_wc', 'c2w', 'cam2world', 'pose', 'T_cam_world', 'cam_T_world']:
         if k in ctx:
             return as_4x4(ctx[k])
-    # 常见 world->cam
     for k in ['T_c_w', 'Tcw', 'w2c', 'world2cam', 'T_world_cam', 'world_T_cam']:
         if k in ctx:
             T_c_w = as_4x4(ctx[k])
             return _invert_se3(T_c_w)
-    # R,t 构造
     if 'R' in ctx and ('t' in ctx or 'T' in ctx):
         R = torch.as_tensor(ctx['R'], device=device, dtype=torch.float32)
         t = torch.as_tensor(ctx.get('t', ctx.get('T')), device=device, dtype=torch.float32)
@@ -121,7 +112,6 @@ def _fetch_T_wc(ctx, *, device, B, default_conv='c2w'):
     raise KeyError("Context missing extrinsics (cam2world/world2cam).")
 
 def _fetch_K(ctx, *, device):
-    """鲁棒读取内参矩阵（像素尺度）。"""
     for k in ['K', 'camera_intrinsics', 'intrinsics', 'kalib']:
         if k in ctx:
             K = torch.as_tensor(ctx[k], device=device, dtype=torch.float32)
@@ -133,18 +123,13 @@ def _fetch_K(ctx, *, device):
 
 
 class MAST3RGaussians(L.LightningModule):
-    """
-    集成 3D 一致性、Novel-View 一致性（可选）、稳定门控与诊断的主引擎。
-    """
     def __init__(self, config):
         super().__init__()
         self.config = config
-        # 在 __init__ 中添加属性，用于稍后存储数据集
         self.train_dataset = None
         self.val_dataset = None
-        self.test_datasets = {} 
+        self.test_datasets = {}
 
-        # --- 模型和渲染器装配 ---
         self.encoder = mast3r_model.AsymmetricMASt3R(
             pos_embed='RoPE100',
             patch_embed_cls='ManyAR_PatchEmbed',
@@ -177,17 +162,11 @@ class MAST3RGaussians(L.LightningModule):
 
         self.save_hyperparameters()
 
-    # ======================== 数据加载相关的钩子函数 (无改动) ========================
-    
+
     def setup(self, stage: str):
-        """
-        这个方法会在 fit/validate/test 开始前，在每个GPU上被调用。
-        此时分布式环境已经就绪！在这里创建数据集是最安全的。
-        """
         logging.info(f"--- Running setup() on rank {self.global_rank} for stage: {stage} ---")
-        
-        # 为训练和验证阶段创建数据集
-        if stage == 'fit' or stage is None: # stage is None for trainer.fit(datamodule=...)
+
+        if stage == 'fit' or stage is None:
             if self.train_dataset is None:
                 logging.info("Setting up train dataset...")
                 self.train_dataset = scannetpp.get_scannet_dataset(
@@ -205,14 +184,12 @@ class MAST3RGaussians(L.LightningModule):
                     resolution=self.config.data.resolution,
                     use_every_n_sample=100,
                 )
-        
-        # 为测试阶段创建数据集
+
         if stage == 'test':
-            if not self.test_datasets: # 避免重复创建
+            if not self.test_datasets:
                 logging.info("Setting up test datasets...")
                 for alpha, beta in ((0.9, 0.9), (0.7, 0.7), (0.5, 0.5), (0.3, 0.3)):
-                    # 为了能区分不同的测试dataloader，我们创建一个唯一的键
-                    key = f"alpha_{alpha}_beta_{beta}" 
+                    key = f"alpha_{alpha}_beta_{beta}"
                     self.test_datasets[key] = scannetpp.get_scannet_test_dataset(
                         self.config.data.root,
                         alpha=alpha,
@@ -222,27 +199,23 @@ class MAST3RGaussians(L.LightningModule):
                     )
 
     def train_dataloader(self):
-        """在这里创建训练 DataLoader。"""
-        # 只有在 DDP 模式下才需要 Sampler
         sampler = None
         shuffle = True
-        # self.trainer 属性在 fit/test 阶段可用
         if self.trainer is not None and self.trainer.world_size > 1:
             sampler = DistributedSampler(self.train_dataset, shuffle=True, drop_last=True)
-            shuffle = False # Sampler 会负责 shuffle
+            shuffle = False
 
         return DataLoader(
             self.train_dataset,
-            batch_size=self.config.data.batch_size, 
+            batch_size=self.config.data.batch_size,
             num_workers=self.config.data.num_workers,
-            collate_fn=collate_fn_skip_corrupted, 
+            collate_fn=collate_fn_skip_corrupted,
             sampler=sampler,
             shuffle=shuffle,
             pin_memory=True
         )
 
     def val_dataloader(self):
-        """在这里创建验证 DataLoader。"""
         sampler = None
         if self.trainer is not None and self.trainer.world_size > 1:
             sampler = DistributedSampler(self.val_dataset, shuffle=False, drop_last=True)
@@ -251,21 +224,19 @@ class MAST3RGaussians(L.LightningModule):
             self.val_dataset,
             batch_size=self.config.data.batch_size,
             num_workers=self.config.data.num_workers,
-            collate_fn=collate_fn_skip_corrupted, 
+            collate_fn=collate_fn_skip_corrupted,
             sampler=sampler,
             shuffle=False,
             pin_memory=True
         )
 
     def test_dataloader(self):
-        """在这里创建测试 DataLoader。因为有多个，我们返回一个列表。"""
         dataloaders = []
         for test_dataset in self.test_datasets.values():
             sampler = None
             if self.trainer is not None and self.trainer.world_size > 1:
-                # 测试时通常不 drop_last，以评估所有数据
                 sampler = DistributedSampler(test_dataset, shuffle=False, drop_last=False)
-            
+
             loader = DataLoader(
                 test_dataset,
                 batch_size=self.config.data.batch_size,
@@ -276,13 +247,9 @@ class MAST3RGaussians(L.LightningModule):
             )
             dataloaders.append(loader)
         return dataloaders
-    
-    # ======================== 以下是原有的模型逻辑，在 *_step 方法前增加一个辅助函数 ========================
 
-    # ===================== 工具：配置兼容、诊断、稳性 (无改动) =====================
 
     def _cfg(self, key, default=None):
-        # 兼容 novel_view_* 与 fewview_* 两套前缀
         v = self.config.loss.get(key, None)
         if v is not None:
             return v
@@ -293,9 +260,6 @@ class MAST3RGaussians(L.LightningModule):
         return default if v is None else v
 
     def _post_process_predictions(self, pred):
-        """
-        通过限制 logits 来稳定高斯尺度，防止训练发散。
-        """
         max_scale_limit = self.config.get('max_scale_limit', 0.5)
         max_logit_limit = math.log(max_scale_limit)
         if 'scale_logits' in pred:
@@ -368,7 +332,7 @@ class MAST3RGaussians(L.LightningModule):
                     raise RuntimeError("NaN/Inf detected in loss or intermediates.")
 
     def _render_with_gsplat_single(self, gauss, w2c, K_norm, image_shape):
-        assert _GSP_AVAILABLE, "gsplat 未安装，无法使用 novel-view 一致性。"
+        assert _GSP_AVAILABLE, "gsplat is not installed; novel-view consistency is unavailable."
         B = gauss['means'].shape[0]
         H, W = image_shape
         rgb_out, alpha_out = [], []
@@ -946,7 +910,7 @@ class MAST3RGaussians(L.LightningModule):
                 subsample_stride = self.config.loss.get('match_subsample_stride', 8)
                 matches_px, batch_indices = find_matches_fast_reciprocal(
                     pred1['desc'], pred2['desc'],
-                    subsample_stride=subsample_stride, 
+                    subsample_stride=subsample_stride,
                 )
 
                 if matches_px.shape[0] == 0:
@@ -987,40 +951,23 @@ class MAST3RGaussians(L.LightningModule):
                 }
         return matches_info
 
-    # ==================== 新增：用于分布式同步的辅助函数 ====================
     def _is_batch_corrupted_on_any_rank(self, batch) -> bool:
-        """
-        一个辅助函数，用于检查当前批次在任何 DDP 排名中是否损坏。
-        它使用 all_reduce 进行跨排名通信。
-        """
-        # 1. 检查当前排名（GPU）的批次是否损坏
-        # 这是我们在 collate_fn 中设置的可靠信號
         is_corrupted_local = 1.0 if isinstance(batch, dict) and batch.get('is_corrupted_batch') else 0.0
-        
-        # 2. 建立一個張量來同步這個狀態
+
         status_tensor = torch.tensor(is_corrupted_local, device=self.device)
-        
-        # 3. 使用 all_reduce 將所有排名上的狀態相加。
-        # 如果任何一個排名上的批次損壞 (值為 1.0)，那麼總和將大於 0。
+
         torch.distributed.all_reduce(status_tensor, op=torch.distributed.ReduceOp.SUM)
-        
-        # 4. 如果總和 > 0，則表示至少有一個排名遇到了問題
+
         return status_tensor.item() > 0
 
     def training_step(self, batch, batch_idx):
-        # ==================== 修改处：新增同步安全检查 ====================
-        # 此检查确保如果任何一个 GPU 的批次损坏，所有 GPU 都会同步跳过此批次。
         if self._is_batch_corrupted_on_any_rank(batch):
             if self.global_rank == 0:
                 logging.warning(
                     f"Skipping training batch at batch_idx {batch_idx} across all ranks due to data corruption."
                 )
-            # 对于 training_step，必须返回一个需要梯度的张量，否则优化器会出错。
-            # 返回一个 0.0 的损失，它的梯度为 0，这是一个安全的操作。
             return torch.tensor(0.0, device=self.device, requires_grad=True)
-        # ===============================================================
 
-        # 原有的 None 检查，作为双重保险
         if batch is None:
             logging.warning(f"Skipping an entirely corrupted training batch at batch_idx {batch_idx}.")
             return None
@@ -1052,15 +999,12 @@ class MAST3RGaussians(L.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
-        # ==================== 修改处：新增同步安全检查 ====================
         if self._is_batch_corrupted_on_any_rank(batch):
             if self.global_rank == 0:
                 logging.warning(
                     f"Skipping validation batch at batch_idx {batch_idx} across all ranks due to data corruption."
                 )
-            # 在验证/测试中，可以直接返回 None，Lightning 会处理好
             return None
-        # ===============================================================
 
         if batch is None:
             logging.warning(f"Skipping an entirely corrupted validation batch at batch_idx {batch_idx}.")
@@ -1088,19 +1032,17 @@ class MAST3RGaussians(L.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx, dataloader_idx=0):
-        # ==================== 修改处：新增同步安全检查 ====================
         if self._is_batch_corrupted_on_any_rank(batch):
             if self.global_rank == 0:
                 logging.warning(
                     f"Skipping test batch at batch_idx {batch_idx} for dataloader {dataloader_idx} across all ranks due to data corruption."
                 )
             return None
-        # ===============================================================
-        
+
         if batch is None:
             logging.warning(f"Skipping an entirely corrupted test batch at batch_idx {batch_idx}.")
             return None
-            
+
         _, _, h, w = batch["context"][0]["img"].shape
         view1, view2 = batch['context']
         with self.benchmarker.time("encoder"):
@@ -1119,12 +1061,12 @@ class MAST3RGaussians(L.LightningModule):
             calculate_ssim=True
         )
         self._check_nan_inf(loss, mse, lpips_v, consistency_loss, ssim)
-        
+
         test_dataset_key = list(self.test_datasets.keys())[dataloader_idx]
         log_prefix = f'test_{test_dataset_key}'
         self.log_metrics(log_prefix, loss, mse, lpips_v, ssim=ssim, consistency_loss=consistency_loss)
         return loss
-        
+
     def log_metrics(self, prefix, loss, mse, lpips, ssim=None, consistency_loss=None):
         values = {
             f'{prefix}/loss': loss,
@@ -1173,27 +1115,14 @@ class MAST3RGaussians(L.LightningModule):
         benchmark_file_path = os.path.join(self.config.save_dir, "benchmark.json")
         self.benchmarker.dump(benchmark_file_path)
 
-# ==================== 修改处：加固 collate_fn ====================
 def collate_fn_skip_corrupted(batch):
-    """
-    一个更稳健的 collate_fn。
-    如果一个批次中的所有样本都损坏 (为 None)，
-    它不会返回 None，而是返回一个带有名为 'is_corrupted_batch' 的标志的特殊字典，
-    以防止在 DDP 中出现执行路径分歧。
-    """
-    # 1. 像以前一样过滤掉损坏的样本 (值为 None)
     original_size = len(batch)
     batch = list(filter(lambda x: x is not None, batch))
-    
-    # 2. 核心改动：检查过过滤后的批次是否为空
+
     if not batch:
-        # 如果为空，返回一个标志字典，而不是 None。
-        # 这个字典将作为信号，通知 LightningModule 的所有进程同步跳过此批次。
         return {'is_corrupted_batch': True, 'original_batch_size': original_size}
-        
-    # 3. 如果批次有效（至少有一个有效样本），则使用默认的 collate 函数处理
+
     return torch.utils.data.dataloader.default_collate(batch)
-# ===============================================================
 
 def run_experiment(config):
     L.seed_everything(config.seed, workers=True)
@@ -1292,23 +1221,15 @@ def run_experiment(config):
             profiler=profiler,
             strategy="ddp_find_unused_parameters_true" if len(config.devices) > 1 else "auto",
         )
-        # fit 函数的调用变得极其简单，不再需要传递 dataloaders
         trainer.fit(model)
 
         print("Starting Testing...")
-        # 调用 trainer.test()，它会自动使用 model.test_dataloader()
-        # Lightning 会自动处理多个 dataloader 的情况
         results = trainer.test(model)
-        
-        # 将结果保存到 JSON
+
         if is_rank0:
-            # results 将是一个列表，每个元素对应一个 test_dataloader 的结果
-            # 我们需要将其格式化以便保存
             final_results = {}
             test_dataset_keys = list(model.test_datasets.keys())
             for i, res_dict in enumerate(results):
-                # 假设 res_dict 的 key 带有 dataloader_idx 后缀，我们需要清理一下
-                # 或者直接用 test_dataset_keys 来命名
                 test_name = test_dataset_keys[i]
                 final_results[test_name] = res_dict
 
