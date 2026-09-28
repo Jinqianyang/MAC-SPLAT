@@ -1,9 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Visualization utilities using trimesh
-# --------------------------------------------------------
 import PIL.Image
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -17,7 +11,6 @@ try:
     import trimesh
 except ImportError:
     print('/!\\ module trimesh is not installed, cannot visualize results /!\\')
-
 
 
 def cat_3d(vecs):
@@ -42,20 +35,18 @@ def pts3d_to_trimesh(img, pts3d, valid=None):
 
     vertices = pts3d.reshape(-1, 3)
 
-    # make squares: each pixel == 2 triangles
     idx = np.arange(len(vertices)).reshape(H, W)
-    idx1 = idx[:-1, :-1].ravel()  # top-left corner
-    idx2 = idx[:-1, +1:].ravel()  # right-left corner
-    idx3 = idx[+1:, :-1].ravel()  # bottom-left corner
-    idx4 = idx[+1:, +1:].ravel()  # bottom-right corner
+    idx1 = idx[:-1, :-1].ravel()
+    idx2 = idx[:-1, +1:].ravel()
+    idx3 = idx[+1:, :-1].ravel()
+    idx4 = idx[+1:, +1:].ravel()
     faces = np.concatenate((
         np.c_[idx1, idx2, idx3],
-        np.c_[idx3, idx2, idx1],  # same triangle, but backward (cheap solution to cancel face culling)
+        np.c_[idx3, idx2, idx1],
         np.c_[idx2, idx3, idx4],
-        np.c_[idx4, idx3, idx2],  # same triangle, but backward (cheap solution to cancel face culling)
+        np.c_[idx4, idx3, idx2],
     ), axis=0)
 
-    # prepare triangle colors
     face_colors = np.concatenate((
         img[:-1, :-1].reshape(-1, 3),
         img[:-1, :-1].reshape(-1, 3),
@@ -63,7 +54,6 @@ def pts3d_to_trimesh(img, pts3d, valid=None):
         img[+1:, +1:].reshape(-1, 3)
     ), axis=0)
 
-    # remove invalid faces
     if valid is not None:
         assert valid.shape == (H, W)
         valid_idxs = valid.ravel()
@@ -123,13 +113,11 @@ class SceneViz:
     def add_rgbd(self, image, depth, intrinsics=None, cam2world=None, zfar=np.inf, mask=None):
         image = img_to_arr(image)
 
-        # make up some intrinsics
         if intrinsics is None:
             H, W, THREE = image.shape
             focal = max(H, W)
             intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]])
 
-        # compute 3d points
         pts3d = depthmap_to_pts3d(depth, intrinsics, cam2world=cam2world)
 
         return self.add_pointcloud(pts3d, image, mask=(depth<zfar) if mask is None else mask)
@@ -139,7 +127,7 @@ class SceneViz:
         mask = to_numpy(mask)
         if not isinstance(pts3d, list):
             pts3d = [pts3d.reshape(-1,3)]
-            if mask is not None: 
+            if mask is not None:
                 mask = [mask.ravel()]
         if not isinstance(color, (tuple,list)):
             color = [color.reshape(-1,3)]
@@ -159,29 +147,24 @@ class SceneViz:
             pct.visual.vertex_colors = np.broadcast_to(uint8(color), pts.shape)
 
         if denoise:
-            # remove points which are noisy
             centroid = np.median(pct.vertices, axis=0)
             dist_to_centroid = np.linalg.norm( pct.vertices - centroid, axis=-1)
             dist_thr = np.quantile(dist_to_centroid, 0.99)
             valid = (dist_to_centroid < dist_thr)
-            # new cleaned pointcloud
             pct = trimesh.PointCloud(pct.vertices[valid], color=pct.visual.vertex_colors[valid])
 
         self.scene.add_geometry(pct)
         return self
 
     def add_rgbd(self, image, depth, intrinsics=None, cam2world=None, zfar=np.inf, mask=None):
-        # make up some intrinsics
         if intrinsics is None:
             H, W, THREE = image.shape
             focal = max(H, W)
             intrinsics = np.float32([[focal, 0, W/2], [0, focal, H/2], [0, 0, 1]])
 
-        # compute 3d points
         pts3d, mask2 = depthmap_to_absolute_camera_coordinates(depth, intrinsics, cam2world)
-        mask2 &= (depth<zfar) 
+        mask2 &= (depth<zfar)
 
-        # combine with provided mask if any
         if mask is not None:
             mask2 &= mask
 
@@ -195,7 +178,7 @@ class SceneViz:
             focal = (intrinsics[0,0] * intrinsics[1,1]) ** 0.5
             if imsize is None:
                 imsize = (2*intrinsics[0,2], 2*intrinsics[1,2])
-        
+
         add_scene_cam(self.scene, pose_c2w, color, image, focal, imsize=imsize, screen_width=cam_size, marker=None)
         return self
 
@@ -211,12 +194,6 @@ class SceneViz:
 
 def show_raw_pointcloud_with_cams(imgs, pts3d, mask, focals, cams2world,
                                   point_size=2, cam_size=0.05, cam_color=None):
-    """ Visualization of a pointcloud with cameras
-        imgs = (N, H, W, 3) or N-size list of [(H,W,3), ...]
-        pts3d = (N, H, W, 3) or N-size list of [(H,W,3), ...]
-        focals = (N,) or N-size list of [focal, ...]
-        cams2world = (N,4,4) or N-size list of [(4,4), ...]
-    """
     assert len(pts3d) == len(mask) <= len(imgs) <= len(cams2world) == len(focals)
     pts3d = to_numpy(pts3d)
     imgs = to_numpy(imgs)
@@ -225,13 +202,11 @@ def show_raw_pointcloud_with_cams(imgs, pts3d, mask, focals, cams2world,
 
     scene = trimesh.Scene()
 
-    # full pointcloud
     pts = np.concatenate([p[m] for p, m in zip(pts3d, mask)])
     col = np.concatenate([p[m] for p, m in zip(imgs, mask)])
     pct = trimesh.PointCloud(pts.reshape(-1, 3), colors=col.reshape(-1, 3))
     scene.add_geometry(pct)
 
-    # add each camera
     for i, pose_c2w in enumerate(cams2world):
         if isinstance(cam_color, list):
             camera_edge_color = cam_color[i]
@@ -243,7 +218,7 @@ def show_raw_pointcloud_with_cams(imgs, pts3d, mask, focals, cams2world,
     scene.show(line_settings={'point_size': point_size})
 
 
-def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=None, 
+def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=None,
                   screen_width=0.03, marker=None):
     if image is not None:
         image = np.asarray(image)
@@ -261,20 +236,18 @@ def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=No
     if isinstance(focal, np.ndarray):
         focal = focal[0]
     if not focal:
-        focal = min(H,W) * 1.1 # default value
+        focal = min(H,W) * 1.1
 
-    # create fake camera
     height = max( screen_width/10, focal * screen_width / H )
     width = screen_width * 0.5**0.5
     rot45 = np.eye(4)
     rot45[:3, :3] = Rotation.from_euler('z', np.deg2rad(45)).as_matrix()
-    rot45[2, 3] = -height  # set the tip of the cone = optical center
+    rot45[2, 3] = -height
     aspect_ratio = np.eye(4)
     aspect_ratio[0, 0] = W/H
     transform = pose_c2w @ OPENGL @ aspect_ratio @ rot45
-    cam = trimesh.creation.cone(width, height, sections=4)  # , transform=transform)
+    cam = trimesh.creation.cone(width, height, sections=4)
 
-    # this is the image
     if image is not None:
         vertices = geotrf(transform, cam.vertices[[4, 5, 1, 3]])
         faces = np.array([[0, 1, 2], [0, 2, 3], [2, 1, 0], [3, 2, 0]])
@@ -283,7 +256,6 @@ def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=No
         img.visual = trimesh.visual.TextureVisuals(uv_coords, image=PIL.Image.fromarray(image))
         scene.add_geometry(img)
 
-    # this is the camera mesh
     rot2 = np.eye(4)
     rot2[:3, :3] = Rotation.from_euler('z', np.deg2rad(2)).as_matrix()
     vertices = np.r_[cam.vertices, 0.95*cam.vertices, geotrf(rot2, cam.vertices)]
@@ -296,7 +268,6 @@ def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=No
         a2, b2, c2 = face + len(cam.vertices)
         a3, b3, c3 = face + 2*len(cam.vertices)
 
-        # add 3 pseudo-edges
         faces.append((a, b, b2))
         faces.append((a, a2, c))
         faces.append((c2, b, c))
@@ -305,7 +276,6 @@ def add_scene_cam(scene, pose_c2w, edge_color, image=None, focal=None, imsize=No
         faces.append((a, a3, c))
         faces.append((c3, b, c))
 
-    # no culling
     faces += [(c, b, a) for a, b, c in faces]
 
     cam = trimesh.Trimesh(vertices=vertices, faces=faces)
@@ -346,30 +316,25 @@ def segment_sky(image):
     import cv2
     from scipy import ndimage
 
-    # Convert to HSV
     image = to_numpy(image)
     if np.issubdtype(image.dtype, np.floating):
         image = np.uint8(255*image.clip(min=0, max=1))
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
 
-    # Define range for blue color and create mask
     lower_blue = np.array([0, 0, 100])
     upper_blue = np.array([30, 255, 255])
     mask = cv2.inRange(hsv, lower_blue, upper_blue).view(bool)
 
-    # add luminous gray
     mask |= (hsv[:, :, 1] < 10) & (hsv[:, :, 2] > 150)
     mask |= (hsv[:, :, 1] < 30) & (hsv[:, :, 2] > 180)
     mask |= (hsv[:, :, 1] < 50) & (hsv[:, :, 2] > 220)
 
-    # Morphological operations
     kernel = np.ones((5, 5), np.uint8)
     mask2 = ndimage.binary_opening(mask, structure=kernel)
 
-    # keep only largest CC
     _, labels, stats, _ = cv2.connectedComponentsWithStats(mask2.view(np.uint8), connectivity=8)
     cc_sizes = stats[1:, cv2.CC_STAT_AREA]
-    order = cc_sizes.argsort()[::-1]  # bigger first
+    order = cc_sizes.argsort()[::-1]
     i = 0
     selection = []
     while i < len(order) and cc_sizes[order[i]] > cc_sizes[order[0]] / 2:
@@ -377,5 +342,4 @@ def segment_sky(image):
         i += 1
     mask3 = np.in1d(labels, selection).reshape(labels.shape)
 
-    # Apply mask
     return torch.from_numpy(mask3)

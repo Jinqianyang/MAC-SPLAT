@@ -1,0 +1,156 @@
+Source notices
+==============
+
+Copyright notices, license terms, and source references retained from the source files.
+Source comments and docstrings were removed; existing license terms still apply.
+The component LICENSE and NOTICE files and the license texts in this directory are retained.
+
+Files:
+  src/mast3r_src/dust3r/croco/models/blocks.py
+  src/mast3r_src/dust3r/croco/models/croco.py
+  src/mast3r_src/dust3r/croco/models/curope/__init__.py
+  src/mast3r_src/dust3r/croco/models/curope/curope.cpp
+  src/mast3r_src/dust3r/croco/models/curope/curope2d.py
+  src/mast3r_src/dust3r/croco/models/curope/kernels.cu
+  src/mast3r_src/dust3r/croco/models/curope/setup.py
+  src/mast3r_src/dust3r/croco/models/dpt_block.py
+  src/mast3r_src/dust3r/croco/models/masking.py
+  src/mast3r_src/dust3r/croco/models/pos_embed.py
+  src/mast3r_src/dust3r/croco/utils/misc.py
+
+Copyright (C) 2022-present Naver Corporation. All rights reserved.
+Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
+
+Files:
+  src/mast3r_src/dust3r/dust3r/__init__.py
+  src/mast3r_src/dust3r/dust3r/datasets/__init__.py
+  src/mast3r_src/dust3r/dust3r/datasets/arkitscenes.py
+  src/mast3r_src/dust3r/dust3r/datasets/base/__init__.py
+  src/mast3r_src/dust3r/dust3r/datasets/base/base_stereo_view_dataset.py
+  src/mast3r_src/dust3r/dust3r/datasets/base/batched_sampler.py
+  src/mast3r_src/dust3r/dust3r/datasets/base/easy_dataset.py
+  src/mast3r_src/dust3r/dust3r/datasets/blendedmvs.py
+  src/mast3r_src/dust3r/dust3r/datasets/co3d.py
+  src/mast3r_src/dust3r/dust3r/datasets/habitat.py
+  src/mast3r_src/dust3r/dust3r/datasets/megadepth.py
+  src/mast3r_src/dust3r/dust3r/datasets/scannetpp.py
+  src/mast3r_src/dust3r/dust3r/datasets/staticthings3d.py
+  src/mast3r_src/dust3r/dust3r/datasets/utils/__init__.py
+  src/mast3r_src/dust3r/dust3r/datasets/utils/cropping.py
+  src/mast3r_src/dust3r/dust3r/datasets/utils/transforms.py
+  src/mast3r_src/dust3r/dust3r/datasets/waymo.py
+  src/mast3r_src/dust3r/dust3r/datasets/wildrgbd.py
+  src/mast3r_src/dust3r/dust3r/heads/__init__.py
+  src/mast3r_src/dust3r/dust3r/heads/dpt_head.py
+  src/mast3r_src/dust3r/dust3r/heads/linear_head.py
+  src/mast3r_src/dust3r/dust3r/heads/postprocess.py
+  src/mast3r_src/dust3r/dust3r/inference.py
+  src/mast3r_src/dust3r/dust3r/losses.py
+  src/mast3r_src/dust3r/dust3r/patch_embed.py
+  src/mast3r_src/dust3r/dust3r/utils/__init__.py
+  src/mast3r_src/dust3r/dust3r/utils/device.py
+  src/mast3r_src/dust3r/dust3r/utils/geometry.py
+  src/mast3r_src/dust3r/dust3r/utils/image.py
+  src/mast3r_src/dust3r/dust3r/utils/misc.py
+  src/mast3r_src/dust3r/dust3r/utils/path_to_croco.py
+  src/mast3r_src/dust3r/dust3r/viz.py
+  src/mast3r_src/mast3r/__init__.py
+  src/mast3r_src/mast3r/fast_nn.py
+  src/mast3r_src/mast3r/losses.py
+  src/mast3r_src/mast3r/model_v3.py
+  src/mast3r_src/mast3r/utils/__init__.py
+  src/mast3r_src/mast3r/utils/path_to_dust3r.py
+
+Copyright (C) 2024-present Naver Corporation. All rights reserved.
+Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
+
+Files:
+  utils/sh_utils.py
+
+Copyright 2021 The PlenOctree Authors.
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+this list of conditions and the following disclaimer in the documentation
+and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+Source references
+=================
+
+data/data.py
+Adapted from DUST3R's Co3D dataset implementation.
+
+src/mast3r_src/dust3r/croco/models/blocks.py
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/vision_transformer.py
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/helpers.py
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/drop.py
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/mlp.py
+https://github.com/rwightman/pytorch-image-models/blob/master/timm/models/layers/patch_embed.py
+
+src/mast3r_src/dust3r/croco/models/dpt_block.py
+https://github.com/isl-org/DPT
+https://github.com/EPFL-VILAB/MultiMAE/blob/main/multimae/output_adapters.py
+
+src/mast3r_src/dust3r/croco/models/pos_embed.py
+MAE: https://github.com/facebookresearch/mae/blob/main/util/pos_embed.py
+Transformer: https://github.com/tensorflow/models/blob/master/official/nlp/transformer/model_utils.py
+MoCo v3: https://github.com/facebookresearch/moco-v3
+DeiT: https://github.com/facebookresearch/deit
+
+src/mast3r_src/dust3r/croco/utils/misc.py
+MAE: https://github.com/facebookresearch/mae
+DeiT: https://github.com/facebookresearch/deit
+BEiT: https://github.com/microsoft/unilm/tree/master/beit
+
+src/mast3r_src/dust3r/dust3r/datasets/arkitscenes.py
+dataset at https://github.com/apple/ARKitScenes - Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License https://github.com/apple/ARKitScenes/tree/main?tab=readme-ov-file#license
+
+src/mast3r_src/dust3r/dust3r/datasets/blendedmvs.py
+dataset at https://github.com/YoYo000/BlendedMVS
+
+src/mast3r_src/dust3r/dust3r/datasets/co3d.py
+dataset at https://github.com/facebookresearch/co3d - Creative Commons Attribution-NonCommercial 4.0 International
+
+src/mast3r_src/dust3r/dust3r/datasets/habitat.py
+dataset at https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md
+
+src/mast3r_src/dust3r/dust3r/datasets/megadepth.py
+dataset at https://www.cs.cornell.edu/projects/megadepth/
+
+src/mast3r_src/dust3r/dust3r/datasets/scannetpp.py
+dataset at https://github.com/scannetpp/scannetpp - non-commercial research and educational purposes
+https://kaldir.vc.in.tum.de/scannetpp/static/scannetpp-terms-of-use.pdf
+
+src/mast3r_src/dust3r/dust3r/datasets/staticthings3d.py
+dataset at https://github.com/lmb-freiburg/robustmvd/
+
+src/mast3r_src/dust3r/dust3r/datasets/waymo.py
+dataset at https://github.com/waymo-research/waymo-open-dataset
+
+src/mast3r_src/dust3r/dust3r/datasets/wildrgbd.py
+dataset at https://github.com/wildrgbd/wildrgbd/
+
+utils/export.py
+Adapted loosely from PixelSplat
+Adapted from DUSt3R.
+https://niujinshuchong.github.io/mip-splatting-demo/index.html
+
+utils/geometry.py
+This is adapted from Pytorch3D:
+https://github.com/facebookresearch/pytorch3d/blob/main/pytorch3d/transforms/rotation_conversions.py

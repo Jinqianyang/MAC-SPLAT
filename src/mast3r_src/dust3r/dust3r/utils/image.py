@@ -1,9 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilitary functions about images (loading/converting...)
-# --------------------------------------------------------
 import os
 import torch
 import numpy as np
@@ -11,10 +5,10 @@ import PIL.Image
 from PIL.ImageOps import exif_transpose
 import torchvision.transforms as tvf
 os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
-import cv2  # noqa
+import cv2
 
 try:
-    from pillow_heif import register_heif_opener  # noqa
+    from pillow_heif import register_heif_opener
     register_heif_opener()
     heif_support_enabled = True
 except ImportError:
@@ -30,11 +24,9 @@ def img_to_arr( img ):
     return img
 
 def imread_cv2(path, options=cv2.IMREAD_COLOR):
-    """ Open an image or a depthmap with opencv-python.
-    """
     if path.endswith(('.exr', 'EXR')):
         options = cv2.IMREAD_ANYDEPTH
-        
+
     img = cv2.imread(path, options)
     if img is None:
         raise IOError(f'Could not load image={path} with {options=}')
@@ -47,7 +39,7 @@ def rgb(ftensor, true_shape=None):
     if isinstance(ftensor, list):
         return [rgb(x, true_shape=true_shape) for x in ftensor]
     if isinstance(ftensor, torch.Tensor):
-        ftensor = ftensor.detach().cpu().numpy()  # H,W,3
+        ftensor = ftensor.detach().cpu().numpy()
     if ftensor.ndim == 3 and ftensor.shape[0] == 3:
         ftensor = ftensor.transpose(1, 2, 0)
     elif ftensor.ndim == 4 and ftensor.shape[1] == 3:
@@ -73,8 +65,6 @@ def _resize_pil_image(img, long_edge_size):
 
 
 def load_images(folder_or_list, size, square_ok=False, verbose=True):
-    """ open and convert all images in a list or folder to proper input format for DUSt3R
-    """
     if isinstance(folder_or_list, str):
         if verbose:
             print(f'>> Loading images from {folder_or_list}')
@@ -98,10 +88,8 @@ def load_images(folder_or_list, size, square_ok=False, verbose=True):
         if not path.lower().endswith(supported_images_extensions):
             continue
         img = exif_transpose(PIL.Image.open(os.path.join(root, path))).convert('RGB')
-        # @MODIFIED
         our_method = True
         if our_method:
-            # Resize short side to 512
             W1, H1 = img.size
             img = _resize_pil_image(img, round(size * max(W1/H1, H1/W1)))
             W, H = img.size
@@ -111,10 +99,8 @@ def load_images(folder_or_list, size, square_ok=False, verbose=True):
         else:
             W1, H1 = img.size
             if size == 224:
-                # resize short side to 224 (then crop)
                 img = _resize_pil_image(img, round(size * max(W1/H1, H1/W1)))
             else:
-                # resize long side to 512
                 img = _resize_pil_image(img, size)
             W, H = img.size
             cx, cy = W//2, H//2
@@ -130,7 +116,6 @@ def load_images(folder_or_list, size, square_ok=False, verbose=True):
         W2, H2 = img.size
         if verbose:
             print(f' - adding {path} with resolution {W1}x{H1} --> {W2}x{H2}')
-        # @MODIFIED
         imgs.append(
             {
                 'img': ImgNorm(img)[None],

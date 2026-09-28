@@ -39,4 +39,4 @@ python main.py configs/main.yaml \
 
 We thank the authors of [Splatt3R](https://github.com/btsmart/splatt3r) and [MASt3R](https://github.com/naver/mast3r) for sharing their code. MAC-Splat adapts their implementations and incorporates code from [DUSt3R](https://github.com/naver/dust3r), [CroCo](https://github.com/naver/croco), [pixelSplat](https://github.com/dcharatan/pixelsplat), and [PyTorch3D](https://github.com/facebookresearch/pytorch3d).
 
-License texts are provided in [License](License), the component `LICENSE` and `NOTICE` files, and [licenses/](licenses/).
+License texts are provided in [License](License), the component `LICENSE` and `NOTICE` files, and [licenses/](licenses/). File-specific notices and source references are retained in [licenses/SOURCE-NOTICES.txt](licenses/SOURCE-NOTICES.txt).

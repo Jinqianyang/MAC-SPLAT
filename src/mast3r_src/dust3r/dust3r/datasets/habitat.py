@@ -1,15 +1,7 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed habitat
-# dataset at https://github.com/facebookresearch/habitat-sim/blob/main/DATASETS.md
-# See datasets_preprocess/habitat for more details
-# --------------------------------------------------------
 import os.path as osp
 import os
-os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"  # noqa
-import cv2  # noqa
+os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
+import cv2
 import numpy as np
 from PIL import Image
 import json
@@ -22,7 +14,6 @@ class Habitat(BaseStereoViewDataset):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
         assert self.split is not None
-        # loading list of scenes
         with open(osp.join(self.ROOT, f'Habitat_{size}_scenes_{self.split}.txt')) as f:
             self.scenes = f.read().splitlines()
         self.instances = list(range(1, 5))
@@ -40,9 +31,8 @@ class Habitat(BaseStereoViewDataset):
         scene = self.scenes[idx]
         data_path, key = osp.split(osp.join(self.ROOT, scene))
         views = []
-        two_random_views = [0, rng.choice(self.instances)]  # view 0 is connected with all other views
+        two_random_views = [0, rng.choice(self.instances)]
         for view_index in two_random_views:
-            # load the view (and use the next one if this one's broken)
             for ii in range(view_index, view_index + 5):
                 image, depthmap, intrinsics, camera_pose = self._load_one_view(data_path, key, ii % 5, resolution, rng)
                 if np.isfinite(camera_pose).all():
@@ -50,7 +40,7 @@ class Habitat(BaseStereoViewDataset):
             views.append(dict(
                 img=image,
                 depthmap=depthmap,
-                camera_pose=camera_pose,  # cam2world
+                camera_pose=camera_pose,
                 camera_intrinsics=intrinsics,
                 dataset='Habitat',
                 label=osp.relpath(data_path, self.ROOT),
@@ -58,7 +48,7 @@ class Habitat(BaseStereoViewDataset):
         return views
 
     def _load_one_view(self, data_path, key, view_index, resolution, rng):
-        view_index += 1  # file indices starts at 1
+        view_index += 1
         impath = osp.join(data_path, f"{key}_{view_index}.jpeg")
         image = Image.open(impath)
 

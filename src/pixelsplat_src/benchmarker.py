@@ -26,11 +26,8 @@ class Benchmarker:
     def dump(self, path: str) -> None:
         parent = os.path.abspath(os.path.join(path, os.pardir))
         os.makedirs(parent, exist_ok=True)
-        # path.parent.mkdir(exist_ok=True, parents=True)
         with open(path, "w") as f:
             json.dump(dict(self.execution_times), f)
-        # with path.open("w") as f:
-        #     json.dump(dict(self.execution_times), f)
 
     def dump_memory(self, path: Path) -> None:
         path.parent.mkdir(exist_ok=True, parents=True)

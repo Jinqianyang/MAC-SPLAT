@@ -1,9 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilities needed for the inference
-# --------------------------------------------------------
 import tqdm
 import torch
 from dust3r.utils.device import to_cpu, collate_with_cat
@@ -33,7 +27,7 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
     view1, view2 = batch
     ignore_keys = set(['depthmap', 'dataset', 'label', 'instance', 'idx', 'true_shape', 'rng'])
     for view in batch:
-        for name in view.keys():  # pseudo_focal
+        for name in view.keys():
             if name in ignore_keys:
                 continue
             view[name] = view[name].to(device, non_blocking=True)
@@ -44,7 +38,6 @@ def loss_of_one_batch(batch, model, criterion, device, symmetrize_batch=False, u
     with torch.cuda.amp.autocast(enabled=bool(use_amp)):
         pred1, pred2 = model(view1, view2)
 
-        # loss is supposed to be symmetric
         with torch.cuda.amp.autocast(enabled=False):
             loss = criterion(view1, view2, pred1, pred2) if criterion is not None else None
 
@@ -58,9 +51,8 @@ def inference(pairs, model, device, batch_size=8, verbose=True):
         print(f'>> Inference with model on {len(pairs)} image pairs')
     result = []
 
-    # first, check if all images have the same size
     multiple_shapes = not (check_if_same_size(pairs))
-    if multiple_shapes:  # force bs=1
+    if multiple_shapes:
         batch_size = 1
 
     for i in tqdm.trange(0, len(pairs), batch_size, disable=not verbose):
@@ -87,13 +79,11 @@ def get_pred_pts3d(gt, pred, use_pose=False):
         pts3d = depthmap_to_pts3d(**pred, pp=pp)
 
     elif 'pts3d' in pred:
-        # pts3d from my camera
         pts3d = pred['pts3d']
 
     elif 'pts3d_in_other_view' in pred:
-        # pts3d from the other camera, already transformed
         assert use_pose is True
-        return pred['pts3d_in_other_view']  # return!
+        return pred['pts3d_in_other_view']
 
     if use_pose:
         camera_pose = pred.get('camera_pose')
@@ -110,7 +100,6 @@ def find_opt_scaling(gt_pts1, gt_pts2, pr_pts1, pr_pts2=None, fit_mode='weiszfel
         assert gt_pts2.ndim == pr_pts2.ndim == 4
         assert gt_pts2.shape == pr_pts2.shape
 
-    # concat the pointcloud
     nan_gt_pts1 = invalid_to_nans(gt_pts1, valid1).flatten(1, 2)
     nan_gt_pts2 = invalid_to_nans(gt_pts2, valid2).flatten(1, 2) if gt_pts2 is not None else None
 
@@ -124,20 +113,14 @@ def find_opt_scaling(gt_pts1, gt_pts2, pr_pts1, pr_pts2=None, fit_mode='weiszfel
     dot_gt_gt = all_gt.square().sum(dim=-1)
 
     if fit_mode.startswith('avg'):
-        # scaling = (all_pr / all_gt).view(B, -1).mean(dim=1)
         scaling = dot_gt_pr.nanmean(dim=1) / dot_gt_gt.nanmean(dim=1)
     elif fit_mode.startswith('median'):
         scaling = (dot_gt_pr / dot_gt_gt).nanmedian(dim=1).values
     elif fit_mode.startswith('weiszfeld'):
-        # init scaling with l2 closed form
         scaling = dot_gt_pr.nanmean(dim=1) / dot_gt_gt.nanmean(dim=1)
-        # iterative re-weighted least-squares
         for iter in range(10):
-            # re-weighting by inverse of distance
             dis = (all_pr - scaling.view(-1, 1, 1) * all_gt).norm(dim=-1)
-            # print(dis.nanmean(-1))
             w = dis.clip_(min=1e-8).reciprocal()
-            # update the scaling with the new weights
             scaling = (w * dot_gt_pr).nanmean(dim=1) / (w * dot_gt_gt).nanmean(dim=1)
     else:
         raise ValueError(f'bad {fit_mode=}')
@@ -146,5 +129,4 @@ def find_opt_scaling(gt_pts1, gt_pts2, pr_pts1, pr_pts2=None, fit_mode='weiszfel
         scaling = scaling.detach()
 
     scaling = scaling.clip(min=1e-3)
-    # assert scaling.isfinite().all(), bb()
     return scaling

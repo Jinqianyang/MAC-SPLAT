@@ -1,12 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed scannet++
-# dataset at https://github.com/scannetpp/scannetpp - non-commercial research and educational purposes
-# https://kaldir.vc.in.tum.de/scannetpp/static/scannetpp-terms-of-use.pdf
-# See datasets_preprocess/preprocess_scannetpp.py
-# --------------------------------------------------------
 import os.path as osp
 import cv2
 import numpy as np
@@ -47,12 +38,10 @@ class ScanNetpp(BaseStereoViewDataset):
             camera_pose = self.trajectories[view_idx]
             basename = self.images[view_idx]
 
-            # Load RGB image
             rgb_image = imread_cv2(osp.join(scene_dir, 'images', basename + '.jpg'))
-            # Load depthmap
             depthmap = imread_cv2(osp.join(scene_dir, 'depth', basename + '.png'), cv2.IMREAD_UNCHANGED)
             depthmap = depthmap.astype(np.float32) / 1000
-            depthmap[~np.isfinite(depthmap)] = 0  # invalid
+            depthmap[~np.isfinite(depthmap)] = 0
 
             rgb_image, depthmap, intrinsics = self._crop_resize_if_necessary(
                 rgb_image, depthmap, intrinsics, resolution, rng=rng, info=view_idx)

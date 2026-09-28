@@ -1,11 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed MegaDepth
-# dataset at https://www.cs.cornell.edu/projects/megadepth/
-# See datasets_preprocess/preprocess_megadepth.py
-# --------------------------------------------------------
 import os.path as osp
 import numpy as np
 
@@ -50,7 +42,6 @@ class MegaDepth(BaseStereoViewDataset):
             image_id = [i.startswith(instances) for i in self.all_images]
             image_id = np.nonzero(image_id)[0]
             assert len(image_id), 'no instance found'
-            # both together?
             if len(instances) == 2:
                 valid &= np.in1d(self.pairs['im1_id'], image_id) & np.in1d(self.pairs['im2_id'], image_id)
             else:
@@ -87,7 +78,7 @@ class MegaDepth(BaseStereoViewDataset):
             views.append(dict(
                 img=image,
                 depthmap=depthmap,
-                camera_pose=camera_pose,  # cam2world
+                camera_pose=camera_pose,
                 camera_intrinsics=intrinsics,
                 dataset='MegaDepth',
                 label=osp.relpath(seq_path, self.ROOT),

@@ -1,15 +1,3 @@
-# Copyright (C) 2022-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-# 
-# --------------------------------------------------------
-# utilitary functions for CroCo
-# --------------------------------------------------------
-# References:
-# MAE: https://github.com/facebookresearch/mae
-# DeiT: https://github.com/facebookresearch/deit
-# BEiT: https://github.com/microsoft/unilm/tree/master/beit
-# --------------------------------------------------------
-
 import builtins
 import datetime
 import os
@@ -25,9 +13,6 @@ import torch.distributed as dist
 from torch import inf
 
 class SmoothedValue(object):
-    """Track a series of values and provide access to smoothed values over a
-    window or the global series average.
-    """
 
     def __init__(self, window_size=20, fmt=None):
         if fmt is None:
@@ -43,9 +28,6 @@ class SmoothedValue(object):
         self.total += value * n
 
     def synchronize_between_processes(self):
-        """
-        Warning: does not synchronize the deque!
-        """
         if not is_dist_avail_and_initialized():
             return
         t = torch.tensor([self.count, self.total], dtype=torch.float64, device='cuda')
@@ -174,9 +156,6 @@ class MetricLogger(object):
 
 
 def setup_for_distributed(is_master):
-    """
-    This function disables printing when not in master process
-    """
     builtin_print = builtins.print
 
     def print(*args, **kwargs):
@@ -184,7 +163,7 @@ def setup_for_distributed(is_master):
         force = force or (get_world_size() > 8)
         if is_master or force:
             now = datetime.datetime.now().time()
-            builtin_print('[{}] '.format(now), end='')  # print with time stamp
+            builtin_print('[{}] '.format(now), end='')
             builtin_print(*args, **kwargs)
 
     builtins.print = print
@@ -220,14 +199,14 @@ def save_on_master(*args, **kwargs):
 
 
 def init_distributed_mode(args):
-    nodist = args.nodist if hasattr(args,'nodist') else False 
+    nodist = args.nodist if hasattr(args,'nodist') else False
     if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ and not nodist:
         args.rank = int(os.environ["RANK"])
         args.world_size = int(os.environ['WORLD_SIZE'])
         args.gpu = int(os.environ['LOCAL_RANK'])
     else:
         print('Not using distributed mode')
-        setup_for_distributed(is_master=True)  # hack
+        setup_for_distributed(is_master=True)
         args.distributed = False
         return
 
@@ -254,7 +233,7 @@ class NativeScalerWithGradNormCount:
         if update_grad:
             if clip_grad is not None:
                 assert parameters is not None
-                self._scaler.unscale_(optimizer)  # unscale the gradients of optimizer's assigned params in-place
+                self._scaler.unscale_(optimizer)
                 norm = torch.nn.utils.clip_grad_norm_(parameters, clip_grad)
             else:
                 self._scaler.unscale_(optimizer)
@@ -285,8 +264,6 @@ def get_grad_norm_(parameters, norm_type: float = 2.0) -> torch.Tensor:
     else:
         total_norm = torch.norm(torch.stack([torch.norm(p.grad.detach(), norm_type).to(device) for p in parameters]), norm_type)
     return total_norm
-
-
 
 
 def save_model(args, epoch, model_without_ddp, optimizer, loss_scaler, fname=None, best_so_far=None):
@@ -339,12 +316,7 @@ def all_reduce_mean(x):
         return x
 
 def _replace(text, src, tgt, rm=''):
-    """ Advanced string replacement.
-    Given a text:
-    - replace all elements in src by the corresponding element in tgt
-    - remove all elements in rm
-    """
-    if len(tgt) == 1: 
+    if len(tgt) == 1:
         tgt = tgt * len(src)
     assert len(src) == len(tgt), f"'{src}' and '{tgt}' should have the same len"
     for s,t in zip(src, tgt):
@@ -352,13 +324,9 @@ def _replace(text, src, tgt, rm=''):
     for c in rm:
         text = text.replace(c,'')
     return text
-    
+
 def filename( obj ):
-    """ transform a python obj or cmd into a proper filename. 
-     - \1 gets replaced by slash '/'
-     - \2 gets replaced by comma ','
-    """
-    if not isinstance(obj, str): 
+    if not isinstance(obj, str):
         obj = repr(obj)
     obj = str(obj).replace('()','')
     obj = _replace(obj, '_,(*/\1\2','-__x%/,', rm=' )\'"')
@@ -373,12 +341,12 @@ def _get_num_layer_for_vit(var_name, enc_depth, dec_depth):
     elif var_name.startswith("enc_blocks"):
         layer_id = int(var_name.split('.')[1])
         return layer_id + 1
-    elif var_name.startswith('decoder_embed') or var_name.startswith('enc_norm'): # part of the last black
+    elif var_name.startswith('decoder_embed') or var_name.startswith('enc_norm'):
         return enc_depth
     elif var_name.startswith('dec_blocks'):
         layer_id = int(var_name.split('.')[1])
         return enc_depth + layer_id + 1
-    elif var_name.startswith('dec_norm'): # part of the last block
+    elif var_name.startswith('dec_norm'):
         return enc_depth + dec_depth
     elif any(var_name.startswith(k) for k in ['head','prediction_head']):
         return enc_depth + dec_depth + 1
@@ -389,19 +357,17 @@ def get_parameter_groups(model, weight_decay, layer_decay=1.0, skip_list=(), no_
     parameter_group_names = {}
     parameter_group_vars = {}
     enc_depth, dec_depth = None, None
-    # prepare layer decay values 
     assert layer_decay==1.0 or 0.<layer_decay<1.
     if layer_decay<1.:
         enc_depth = model.enc_depth
         dec_depth = model.dec_depth if hasattr(model, 'dec_blocks') else 0
         num_layers = enc_depth+dec_depth
         layer_decay_values = list(layer_decay ** (num_layers + 1 - i) for i in range(num_layers + 2))
-        
+
     for name, param in model.named_parameters():
         if not param.requires_grad:
-            continue  # frozen weights
+            continue
 
-        # Assign weight decay values
         if len(param.shape) == 1 or name.endswith(".bias") or name in skip_list:
             group_name = "no_decay"
             this_weight_decay = 0.
@@ -409,7 +375,6 @@ def get_parameter_groups(model, weight_decay, layer_decay=1.0, skip_list=(), no_
             group_name = "decay"
             this_weight_decay = weight_decay
 
-        # Assign layer ID for LR scaling
         if layer_decay<1.:
             skip_scale = False
             layer_id = _get_num_layer_for_vit(name, enc_depth, dec_depth)
@@ -444,20 +409,18 @@ def get_parameter_groups(model, weight_decay, layer_decay=1.0, skip_list=(), no_
     return list(parameter_group_vars.values())
 
 
-
 def adjust_learning_rate(optimizer, epoch, args):
-    """Decay the learning rate with half-cycle cosine after warmup"""
-    
+
     if epoch < args.warmup_epochs:
-        lr = args.lr * epoch / args.warmup_epochs 
+        lr = args.lr * epoch / args.warmup_epochs
     else:
         lr = args.min_lr + (args.lr - args.min_lr) * 0.5 * \
             (1. + math.cos(math.pi * (epoch - args.warmup_epochs) / (args.epochs - args.warmup_epochs)))
-            
+
     for param_group in optimizer.param_groups:
         if "lr_scale" in param_group:
             param_group["lr"] = lr * param_group["lr_scale"]
         else:
             param_group["lr"] = lr
-            
+
     return lr

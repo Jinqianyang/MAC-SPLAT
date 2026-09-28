@@ -1,18 +1,9 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed arkitscenes
-# dataset at https://github.com/apple/ARKitScenes - Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International Public License https://github.com/apple/ARKitScenes/tree/main?tab=readme-ov-file#license
-# See datasets_preprocess/preprocess_arkitscenes.py
-# --------------------------------------------------------
 import os.path as osp
 import cv2
 import numpy as np
 import sys
 import os
 
-# 将项目的 src 目录添加到 sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), 'src')))
 from ..datasets.base.base_stereo_view_dataset import BaseStereoViewDataset
 from ..utils.image import imread_cv2
@@ -56,12 +47,10 @@ class ARKitScenes(BaseStereoViewDataset):
             camera_pose = self.trajectories[view_idx]
             basename = self.images[view_idx]
 
-            # Load RGB image
             rgb_image = imread_cv2(osp.join(scene_dir, 'vga_wide', basename.replace('.png', '.jpg')))
-            # Load depthmap
             depthmap = imread_cv2(osp.join(scene_dir, 'lowres_depth', basename), cv2.IMREAD_UNCHANGED)
             depthmap = depthmap.astype(np.float32) / 1000
-            depthmap[~np.isfinite(depthmap)] = 0  # invalid
+            depthmap[~np.isfinite(depthmap)] = 0
 
             rgb_image, depthmap, intrinsics = self._crop_resize_if_necessary(
                 rgb_image, depthmap, intrinsics, resolution, rng=rng, info=view_idx)

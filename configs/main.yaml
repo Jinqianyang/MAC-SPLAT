@@ -1,30 +1,25 @@
 name: 'macsplat-%Y-%m-%d-%H-%M-%S'
 save_dir: './outputs/${name}/'
 
-# Environment
 seed: 0
 devices: [0]
 
-# Loggers
 use_profiler: false
 loggers:
   use_csv_logger: true
   use_wandb: false
 
-# Model
 use_pretrained: true
 pretrained_mast3r_path: 'checkpoints/macsplat.ckpt'
 
-# Data
 data:
   root: './scannetpp-main/'
   batch_size: 1
   num_workers: 8
   resolution: [512, 512]
   epochs_per_train_epoch: 20
-  extrinsics_convention: c2w   # cam->world
+  extrinsics_convention: c2w
 
-# Optimization（建议的稳健起点）
 opt:
   epochs: 10
   lr: 0.000001
@@ -32,47 +27,40 @@ opt:
   gradient_clip_val: 0.5
 
 loss:
-  # Photometric
   mse_loss_weight: 1.0
   lpips_loss_weight: 0.1
   apply_mask: true
   average_over_mask: true
 
-  # === Novel-View Consistency（与函数一致） ===
-  novel_view_loss_weight: 0         # 总权重；函数内部做 warmup
-  novel_view_warmup_steps: 2500    # 线性升温到 full weight
-  fewview_nvc_t: 0.5                # cam1→cam2 插值比例
-  fewview_alpha_thresh: 0.3        # alpha 软门控阈值（sigmoid）
-  fewview_agree_thresh_px: 1.5      # 双路投影在 novel 上的像素一致阈值
-  fewview_grad_thresh: 0.1          # 梯度权重阈值
-  fewview_shape_weight: 0.02        # 可选：尺度一致
-  fewview_opacity_weight: 0.02      # 可选：不透明度一致
-  fewview_near: 0.01                # gsplat 近裁剪（米级室内更稳）
-  fewview_far: 1000.0                # gsplat 远裁剪
+  novel_view_loss_weight: 0
+  novel_view_warmup_steps: 2500
+  fewview_nvc_t: 0.5
+  fewview_alpha_thresh: 0.3
+  fewview_agree_thresh_px: 1.5
+  fewview_grad_thresh: 0.1
+  fewview_shape_weight: 0.02
+  fewview_opacity_weight: 0.02
+  fewview_near: 0.01
+  fewview_far: 1000.0
 
-  # 特征互选匹配（用于一致性采样）
   match_subsample_stride: 8
   match_warmup_steps: 1000
   min_match_conf_start: 0.0
   min_match_conf_end: 0.5
 
-  # 旧的 3D 坐标一致性（如仍要启用）
   consistency_loss_weight: 0.2
   consistency_chunk_size: 1024
-  
-  consistency_pos_weight: 1.0        # 位置项
-  consistency_shape_weight: 0.02     # 形状项（scales）
-  consistency_opacity_weight: 0.1   # 不透明度项
-  consistency_color_weight: 0.1     # 颜色项（SH）
 
-  # MASt3R 原生监督（如需关闭置 0 或 null）
+  consistency_pos_weight: 1.0
+  consistency_shape_weight: 0.02
+  consistency_opacity_weight: 0.1
+  consistency_color_weight: 0.1
+
   mast3r_loss_weight: 0.0
 
-# 其它模型选项
 use_offsets: true
 sh_degree: 1
 
-# 测试设置
 test_params:
   - {alpha: 0.9, beta: 0.9}
   - {alpha: 0.7, beta: 0.7}
