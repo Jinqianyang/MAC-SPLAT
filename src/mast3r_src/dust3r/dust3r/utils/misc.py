@@ -1,14 +1,8 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilitary functions for DUSt3R
-# --------------------------------------------------------
 import torch
 
 
 def fill_default_args(kwargs, func):
-    import inspect  # a bit hacky but it works reliably
+    import inspect
     signature = inspect.signature(func)
 
     for k, v in signature.parameters.items():
@@ -25,7 +19,6 @@ def freeze_all_params(modules):
             for n, param in module.named_parameters():
                 param.requires_grad = False
         except AttributeError:
-            # module is directly a parameter
             module.requires_grad = False
 
 
@@ -33,7 +26,7 @@ def is_symmetrized(gt1, gt2):
     x = gt1['instance']
     y = gt2['instance']
     if len(x) == len(y) and len(x) == 1:
-        return False  # special case of batchsize 1
+        return False
     ok = True
     for i in range(0, len(x), 2):
         ok = ok and (x[i] == y[i + 1]) and (x[i + 1] == y[i])
@@ -41,7 +34,6 @@ def is_symmetrized(gt1, gt2):
 
 
 def flip(tensor):
-    """ flip so that tensor[0::2] <=> tensor[1::2] """
     return torch.stack((tensor[1::2], tensor[0::2]), dim=1).flatten(0, 1)
 
 
@@ -66,15 +58,12 @@ def transpose_to_landscape(head, activate=True):
         is_port = ~is_land
         H, W = int(true_shape.min()), int(true_shape.max())
 
-        # 全横
         if is_land.all():
             return head(decout, (H, W), *extra, **kwextra)
 
-        # 全竖
         if is_port.all():
             return transposed(head(decout, (W, H), *extra, **kwextra))
 
-        # 混合
         def pick(mask):
             return [d[mask] for d in decout]
 
@@ -90,9 +79,6 @@ def transpose_to_landscape(head, activate=True):
         return out
 
     return wrapper_yes
-
-
-
 
 
 def transposed(dic):
@@ -114,7 +100,7 @@ def invalid_to_zeros(arr, valid_mask, ndim=999):
         arr[~valid_mask] = 0
         nnz = valid_mask.view(len(valid_mask), -1).sum(1)
     else:
-        nnz = arr.numel() // len(arr) if len(arr) else 0  # number of point per image
+        nnz = arr.numel() // len(arr) if len(arr) else 0
     if arr.ndim > ndim:
         arr = arr.flatten(-2 - (arr.ndim - ndim), -2)
     return arr, nnz

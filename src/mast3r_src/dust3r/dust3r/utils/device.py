@@ -1,20 +1,8 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# utilitary functions for DUSt3R
-# --------------------------------------------------------
 import numpy as np
 import torch
 
 
 def todevice(batch, device, callback=None, non_blocking=False):
-    ''' Transfer some variables to another device (i.e. GPU, CPU:torch, CPU:numpy).
-
-    batch: list, tuple, dict of tensors or other things
-    device: pytorch device or 'numpy'
-    callback: function that would be called on every sub-elements.
-    '''
     if callback:
         batch = callback(batch)
 
@@ -36,7 +24,7 @@ def todevice(batch, device, callback=None, non_blocking=False):
     return x
 
 
-to_device = todevice  # alias
+to_device = todevice
 
 
 def to_numpy(x): return todevice(x, 'numpy')
@@ -68,7 +56,6 @@ def collate_with_cat(whatever, lists=False):
         if isinstance(elem, np.ndarray):
             return listify(whatever) if lists else torch.cat([torch.from_numpy(x) for x in whatever])
 
-        # otherwise, we just chain lists
         return sum(whatever, T())
 
 
