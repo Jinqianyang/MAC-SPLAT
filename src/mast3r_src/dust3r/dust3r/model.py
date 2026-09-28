@@ -1,25 +1,23 @@
-
 from copy import deepcopy
 import torch
 import os
 from packaging import version
 import huggingface_hub
-import inspect # For fill_default_args if it needs it
+import inspect
 
-# Your relative imports
 from .utils.misc import fill_default_args, freeze_all_params, is_symmetrized, interleave, transpose_to_landscape
-from .heads import head_factory # This will import the modified head_factory from your heads file
-from dust3r.patch_embed import get_patch_embed # Assuming this path is correct
+from .heads import head_factory
+from dust3r.patch_embed import get_patch_embed
 
-import dust3r.utils.path_to_croco  # noqa: F401
-from models.croco import CroCoNet  # noqa: Make sure this is the correct CroCoNet class
+import dust3r.utils.path_to_croco
+from models.croco import CroCoNet
 
 inf = float('inf')
 
 hf_version_number = huggingface_hub.__version__
 assert version.parse(hf_version_number) >= version.parse("0.22.0"), "Outdated huggingface_hub version, please reinstall requirements.txt"
 
-def DBG(tag, *msgs): # Make DBG globally available or import if it's in misc
+def DBG(tag, *msgs):
     if (not torch.distributed.is_initialized()
         or torch.distributed.get_rank() == 0):
         print(f"[{tag}]", *msgs)
@@ -30,7 +28,7 @@ def load_model(model_path, device, verbose=True):
     ckpt = torch.load(model_path, map_location='cpu')
     if 'args' not in ckpt or not hasattr(ckpt['args'], 'model'):
         raise ValueError("Checkpoint 'args' or 'args.model' not found. Check checkpoint structure.")
-    
+
     args_str = ckpt['args'].model.replace("ManyAR_PatchEmbed", "PatchEmbedDust3R")
     if 'landscape_only' not in args_str:
         if args_str.endswith(')'):
@@ -39,22 +37,19 @@ def load_model(model_path, device, verbose=True):
             DBG("Load Warning", f"Cannot easily append landscape_only to args_str: {args_str}")
     else:
         args_str = args_str.replace(" ", "").replace('landscape_only=True', 'landscape_only=False')
-    
+
     if "landscape_only=False" not in args_str:
             DBG("Load Warning", f"landscape_only=False not in args_str after manipulation: {args_str}")
 
     if verbose:
         DBG("Load", f"instantiating with args_str: {args_str}")
-    
+
     try:
-        # Ensure AsymmetricCroCo3DStereo is in the global scope for eval if not already
-        # This is usually the case if load_model is in the same file as the class definition.
-        # global AsymmetricCroCo3DStereo # Generally not needed if defined in same module
         net = eval(args_str)
     except Exception as e:
         DBG("Load Error", f"Failed to eval args_str: {args_str}. Error: {e}")
         raise e
-        
+
     s = net.load_state_dict(ckpt['model'], strict=False)
     if verbose:
         DBG("Load", f"State dict load status: {s}")
@@ -62,32 +57,28 @@ def load_model(model_path, device, verbose=True):
 
 
 class AsymmetricCroCo3DStereo (
-    CroCoNet, 
+    CroCoNet,
     huggingface_hub.PyTorchModelHubMixin,
     library_name="dust3r",
-    repo_url="https://github.com/naver/dust3r", 
-    tags=["image-to-3d"], 
+    repo_url="https://github.com/naver/dust3r",
+    tags=["image-to-3d"],
 ):
-    """ Two siamese encoders, followed by two decoders.
-    The goal is to output 3d points directly, both images in view1's frame
-    (hence the asymmetry).
-    """
 
     def __init__(self,
                  output_mode='pts3d',
-                 head_type='gaussian_head', 
+                 head_type='gaussian_head',
                  depth_mode=('exp', -inf, inf),
                  conf_mode=('exp', 1, inf),
                  freeze='none',
-                 landscape_only=True, 
+                 landscape_only=True,
                  patch_embed_cls='PatchEmbedDust3R',
-                 **croco_kwargs): # This should contain enc_embed_dim, img_size, patch_size etc. for CroCoNet
+                 **croco_kwargs):
 
-        self.patch_embed_cls = patch_embed_cls 
+        self.patch_embed_cls = patch_embed_cls
 
         self.croco_args = fill_default_args(croco_kwargs, CroCoNet.__init__)
-        
-        super().__init__(**self.croco_args) # Calls CroCoNet.__init__
+
+        super().__init__(**self.croco_args)
 
         self.dec_blocks2 = deepcopy(self.dec_blocks)
 
@@ -108,43 +99,43 @@ class AsymmetricCroCo3DStereo (
 
         for key in head_param_keys:
             head_specific_kwargs[key] = self.croco_args.get(key, default_head_params.get(key))
-        
+
         for k, v in self.croco_args.items():
             if k not in head_specific_kwargs and k not in [
                 'output_mode', 'head_type', 'landscape_only', 'depth_mode', 'conf_mode',
-                'patch_size', 'img_size', 'enc_embed_dim', 'dec_embed_dim', 'patch_embed_cls', 'freeze' 
+                'patch_size', 'img_size', 'enc_embed_dim', 'dec_embed_dim', 'patch_embed_cls', 'freeze'
             ]:
                 head_specific_kwargs[k] = v
 
         self.set_downstream_head(
             output_mode=output_mode,
             head_type=head_type,
-            landscape_only=landscape_only, 
+            landscape_only=landscape_only,
             depth_mode=depth_mode,
             conf_mode=conf_mode,
-            patch_size=self.patch_size, 
-            img_size=self.img_size,   
-            **head_specific_kwargs 
+            patch_size=self.patch_size,
+            img_size=self.img_size,
+            **head_specific_kwargs
         )
         self.set_freeze(freeze)
 
 
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path, **kw):
-        device = kw.pop('device', 'cpu') 
+        device = kw.pop('device', 'cpu')
         if os.path.isfile(pretrained_model_name_or_path):
-            return load_model(pretrained_model_name_or_path, device=device, **kw) 
+            return load_model(pretrained_model_name_or_path, device=device, **kw)
         else:
             return super().from_pretrained(pretrained_model_name_or_path, **kw)
 
-    def _set_patch_embed(self, img_size, patch_size, enc_embed_dim): 
+    def _set_patch_embed(self, img_size, patch_size, enc_embed_dim):
         dim_to_use_for_patch_embed = getattr(self, 'enc_embed_dim', None)
         if dim_to_use_for_patch_embed is None:
             DBG("_set_patch_embed Warning", f"self.enc_embed_dim not set by CroCoNet prior to this call. Using enc_embed_dim argument: {enc_embed_dim}. Check CroCoNet __init__ and arg propagation.")
-            dim_to_use_for_patch_embed = enc_embed_dim 
-        
+            dim_to_use_for_patch_embed = enc_embed_dim
+
         self.patch_embed = get_patch_embed(self.patch_embed_cls, img_size, patch_size, dim_to_use_for_patch_embed)
-        
+
         if not hasattr(self, 'img_size') or self.img_size != img_size :
              DBG("_set_patch_embed Sync", f"Updating self.img_size from {getattr(self, 'img_size', 'N/A')} to {img_size}")
              self.img_size = img_size
@@ -155,13 +146,13 @@ class AsymmetricCroCo3DStereo (
 
     def load_state_dict(self, ckpt, **kw):
         new_ckpt = dict(ckpt)
-        if not any(k.startswith('dec_blocks2.') for k in new_ckpt): 
+        if not any(k.startswith('dec_blocks2.') for k in new_ckpt):
             DBG("Load SD", "Duplicating decoder weights for dec_blocks2.")
             keys_to_process = list(ckpt.keys())
             for key in keys_to_process:
                 if key.startswith('dec_blocks.'):
                     new_key = key.replace('dec_blocks.', 'dec_blocks2.', 1)
-                    new_ckpt[new_key] = ckpt[key] 
+                    new_ckpt[new_key] = ckpt[key]
         return super().load_state_dict(new_ckpt, **kw)
 
     def set_freeze(self, freeze):
@@ -176,7 +167,7 @@ class AsymmetricCroCo3DStereo (
             if hasattr(self, 'patch_embed') and self.patch_embed is not None:
                 modules_to_freeze.append(self.patch_embed)
             if hasattr(self, 'enc_blocks') and self.enc_blocks is not None:
-                modules_to_freeze.append(self.enc_blocks) 
+                modules_to_freeze.append(self.enc_blocks)
 
         if modules_to_freeze:
             DBG("Freeze", f"Freezing parameters for: {freeze}")
@@ -190,7 +181,7 @@ class AsymmetricCroCo3DStereo (
 
     def set_downstream_head(self, output_mode, head_type, landscape_only,
                             depth_mode, conf_mode, patch_size, img_size,
-                            **kw): 
+                            **kw):
         if not isinstance(img_size, (list, tuple)):
             img_size = (img_size, img_size)
         if not (isinstance(img_size[0], int) and isinstance(img_size[1], int)):
@@ -203,7 +194,7 @@ class AsymmetricCroCo3DStereo (
             f'img_size {img_size} must be multiple of patch_size {patch_size}'
 
         self.output_mode = output_mode
-        self.head_type = head_type 
+        self.head_type = head_type
         self.depth_mode = depth_mode
         self.conf_mode = conf_mode
 
@@ -211,8 +202,8 @@ class AsymmetricCroCo3DStereo (
         kw.pop('patch_size', None)
 
         head_factory_kwargs = {
-            "has_conf": bool(conf_mode), 
-            "use_offsets": kw.get("use_offsets", False), 
+            "has_conf": bool(conf_mode),
+            "use_offsets": kw.get("use_offsets", False),
             "sh_degree": kw.get("sh_degree", 1),
             "use_dino": kw.get("head_use_dino", True),
             "dino_model_name": kw.get("head_dino_model_name", 'dinov2_vits14'),
@@ -222,9 +213,9 @@ class AsymmetricCroCo3DStereo (
             "use_dino_reducer": kw.get("head_use_dino_reducer", False),
             "dino_reducer_dim_out": kw.get("head_dino_reducer_dim_out", 128),
         }
-        
+
         for k, v in kw.items():
-            if k not in head_factory_kwargs and k not in ["output_mode", "head_type", "landscape_only", "depth_mode", "conf_mode"]: 
+            if k not in head_factory_kwargs and k not in ["output_mode", "head_type", "landscape_only", "depth_mode", "conf_mode"]:
                 head_factory_kwargs[k] = v
 
         self.downstream_head1 = head_factory(head_type, output_mode, self, **head_factory_kwargs)
@@ -232,7 +223,6 @@ class AsymmetricCroCo3DStereo (
 
         self.head1 = transpose_to_landscape(self.downstream_head1, activate=landscape_only)
         self.head2 = transpose_to_landscape(self.downstream_head2, activate=landscape_only)
-
 
 
     def _encode_image(self, image, true_shape):
@@ -245,7 +235,7 @@ class AsymmetricCroCo3DStereo (
         assert self.enc_pos_embed is None
 
         for blk in self.enc_blocks:
-            x = blk(x, pos) # pos is passed here, its dtype matters for RoPE
+            x = blk(x, pos)
 
         x = self.enc_norm(x)
         return x, pos, None
@@ -255,12 +245,12 @@ class AsymmetricCroCo3DStereo (
         if isinstance(true_shape2, torch.Tensor): true_shape2 = true_shape2.to(img2.device)
 
         def ensure_batch_dim(shape_tensor, ref_tensor):
-            if ref_tensor.ndim == 0: # Should not happen for image tensors
+            if ref_tensor.ndim == 0:
                 return shape_tensor
-            if shape_tensor.ndim == 1 and ref_tensor.ndim > 1 and ref_tensor.shape[0] > 0 : 
+            if shape_tensor.ndim == 1 and ref_tensor.ndim > 1 and ref_tensor.shape[0] > 0 :
                 shape_tensor = shape_tensor.unsqueeze(0).repeat(ref_tensor.shape[0], 1)
             elif shape_tensor.ndim == 2 and ref_tensor.ndim > 1 and ref_tensor.shape[0] > 0 and shape_tensor.shape[0] != ref_tensor.shape[0]:
-                 shape_tensor = shape_tensor[0:1].repeat(ref_tensor.shape[0],1) 
+                 shape_tensor = shape_tensor[0:1].repeat(ref_tensor.shape[0],1)
             return shape_tensor
 
         true_shape1 = ensure_batch_dim(true_shape1, img1)
@@ -299,13 +289,13 @@ class AsymmetricCroCo3DStereo (
             if true_shape_val.ndim == 1 and batch_size_current > 0 :
                 true_shape_val = true_shape_val.unsqueeze(0).repeat(batch_size_current,1)
             elif true_shape_val.ndim == 2 and batch_size_current > 0 and true_shape_val.shape[0] != batch_size_current :
-                if true_shape_val.shape[0] == 1: 
+                if true_shape_val.shape[0] == 1:
                      true_shape_val = true_shape_val.repeat(batch_size_current,1)
-                else: 
+                else:
                     DBG("_encode_symmetrized Warning", f"true_shape batch size mismatch ({true_shape_val.shape[0]} vs {batch_size_current}). Using default.")
                     return default_shape_batch
             elif true_shape_val.ndim != 2 or (true_shape_val.ndim == 2 and true_shape_val.shape[1] != 2) :
-                if batch_size_current == 0 and true_shape_val.numel() == 0 and true_shape_val.shape[1] == 2: 
+                if batch_size_current == 0 and true_shape_val.numel() == 0 and true_shape_val.shape[1] == 2:
                     pass
                 else:
                     DBG("_encode_symmetrized Warning", f"true_shape has invalid dimensions {true_shape_val.shape}. Using default.")
@@ -331,88 +321,61 @@ class AsymmetricCroCo3DStereo (
         return (shape1, shape2), (feat1, feat2), (pos1, pos2)
 
     def _decoder(self, f1, pos1, f2, pos2):
-        # Features (f1, f2) might be in half precision from encoder, convert to float for decoder.
         f1_fl = f1.float()
         f2_fl = f2.float()
-        
-        # **MODIFICATION**: Do NOT convert pos1, pos2 to float here.
-        # Let them retain the dtype from patch_embed, assuming it's compatible with RoPE kernel (often Long or int).
-        # pos1_fl, pos2_fl = pos1.float(), pos2.float() # REMOVED .float() for positions
 
-        # Use original pos1, pos2 (or ensure they are on the correct device if not already)
-        # It's good practice to ensure all inputs to a module part are on the same device.
-        # f1_fl, f2_fl are on some device. pos1, pos2 should match.
-        # Assuming pos1, pos2 are already on the correct device from _encode_image_pairs.
 
-        final_output_list = [(f1_fl, f2_fl)] 
+        final_output_list = [(f1_fl, f2_fl)]
 
         f1_dec_emb = self.decoder_embed(f1_fl)
         f2_dec_emb = self.decoder_embed(f2_fl)
-        final_output_list.append((f1_dec_emb, f2_dec_emb)) 
+        final_output_list.append((f1_dec_emb, f2_dec_emb))
 
         for blk1, blk2 in zip(self.dec_blocks, self.dec_blocks2):
             f1_curr, f2_curr = final_output_list[-1]
-            # Pass the original (non-float converted) pos1, pos2 to the decoder blocks
-            f1_next, _ = blk1(f1_curr, f2_curr, pos1, pos2) 
+            f1_next, _ = blk1(f1_curr, f2_curr, pos1, pos2)
             f2_next, _ = blk2(f2_curr, f1_curr, pos2, pos1)
             final_output_list.append((f1_next, f2_next))
-        
-        if len(final_output_list) > 1:
-            del final_output_list[1] 
 
-        if final_output_list: 
+        if len(final_output_list) > 1:
+            del final_output_list[1]
+
+        if final_output_list:
             f1_last_to_norm, f2_last_to_norm = final_output_list[-1]
             final_output_list[-1] = (self.dec_norm(f1_last_to_norm), self.dec_norm(f2_last_to_norm))
-        else: 
-            
-            return [],[] 
+        else:
 
-        return list(zip(*final_output_list)) 
+            return [],[]
+
+        return list(zip(*final_output_list))
 
     def _downstream_head(self, head_num, decout_for_view, true_shape_for_view, img_rgb_for_view=None):
 
         head_module_wrapper = getattr(self, f'head{head_num}')
         if img_rgb_for_view is not None:
             return head_module_wrapper(decout_for_view, true_shape_for_view, img_rgb_for_view)
-        else: 
+        else:
             return head_module_wrapper(decout_for_view, true_shape_for_view)
 
 
     def forward(self, view1, view2):
-        B = view1['img'].shape[0] 
+        B = view1['img'].shape[0]
 
         (shape1, shape2), (feat1, feat2), (pos1, pos2) = self._encode_symmetrized(view1, view2)
 
-        # dec_outputs1_tuple and dec_outputs2_tuple are iterables from zip
-        # Each element of the tuple is a list of features for that view across decoder stages
-        # e.g., dec_outputs1_tuple = (enc_raw_f1_list, dec_l1_out_f1_list, ...)
-        # No, zip(*final_output_list) makes it:
-        # dec_outputs1_tuple = (f1_for_stage0, f1_for_stage1, ...)
-        # dec_outputs2_tuple = (f2_for_stage0, f2_for_stage1, ...)
-        # So dec_outputs1_tuple is the decout_for_view for view1.
-        
-        # _decoder returns: list(zip(*final_output_list))
-        # if final_output_list = [(s0_f1, s0_f2), (s1_f1, s1_f2), (s2_f1, s2_f2)]
-        # zip(...) = ((s0_f1,s1_f1,s2_f1), (s0_f2,s1_f2,s2_f2))
-        # list(zip(...)) = [(s0_f1,s1_f1,s2_f1), (s0_f2,s1_f2,s2_f2)]
-        # So dec_outputs_list[0] is the decout for view1, dec_outputs_list[1] is for view2.
-        
+
         decoder_results = self._decoder(feat1, pos1, feat2, pos2)
         if not decoder_results or len(decoder_results) < 2:
             DBG("FWD Error", "Decoder did not return expected two output lists.")
-            # Handle error appropriately, e.g., return None or raise exception
-            return None, None 
-            
+            return None, None
+
         dec_outputs1_sequence, dec_outputs2_sequence = decoder_results[0], decoder_results[1]
 
-        decout1_for_head = [tok.float() for tok in dec_outputs1_sequence] 
-        decout2_for_head = [tok.float() for tok in dec_outputs2_sequence] 
+        decout1_for_head = [tok.float() for tok in dec_outputs1_sequence]
+        decout2_for_head = [tok.float() for tok in dec_outputs2_sequence]
 
 
-
-
-        device = view1['img'].device 
-        # ---------- before calling _downstream_head ----------
+        device = view1['img'].device
         img1_rgb = view1.get('original_img', view1['img']).to(device)
         img2_rgb = view2.get('original_img', view2['img']).to(device)
 
@@ -422,6 +385,5 @@ class AsymmetricCroCo3DStereo (
 
         res2['pts3d_in_other_view'] = res2.pop('pts3d')
 
-            
 
         return res1, res2
