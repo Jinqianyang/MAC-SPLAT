@@ -1,11 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed WildRGB-D
-# dataset at https://github.com/wildrgbd/wildrgbd/
-# See datasets_preprocess/preprocess_wildrgbd.py
-# --------------------------------------------------------
 import os.path as osp
 
 import cv2
@@ -33,8 +25,6 @@ class WildRGBD(Co3d):
         return osp.join(self.ROOT, obj, instance, 'masks', f'{view_idx:0>5d}.png')
 
     def _read_depthmap(self, depthpath, input_metadata):
-        # We store depths in the depth scale of 1000.
-        # That is, when we load depth image and divide by 1000, we could get depth in meters.
         depthmap = imread_cv2(depthpath, cv2.IMREAD_UNCHANGED)
         depthmap = depthmap.astype(np.float32) / 1000.0
         return depthmap

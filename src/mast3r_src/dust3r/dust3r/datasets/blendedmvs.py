@@ -1,11 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed BlendedMVS
-# dataset at https://github.com/YoYo000/BlendedMVS
-# See datasets_preprocess/preprocess_blendedmvs.py
-# --------------------------------------------------------
 import os.path as osp
 import numpy as np
 
@@ -14,8 +6,6 @@ from src.mast3r_src.dust3r.dust3r.utils.image import imread_cv2
 
 
 class BlendedMVS (BaseStereoViewDataset):
-    """ Dataset of outdoor street scenes, 5 images each time
-    """
 
     def __init__(self, *args, ROOT, split=None, **kwargs):
         self.ROOT = ROOT
@@ -27,15 +17,12 @@ class BlendedMVS (BaseStereoViewDataset):
         if split is None:
             selection = slice(None)
         if split == 'train':
-            # select 90% of all scenes
             selection = (pairs['seq_low'] % 10) > 0
         if split == 'val':
-            # select 10% of all scenes
             selection = (pairs['seq_low'] % 10) == 0
         self.pairs = pairs[selection]
 
-        # list of all scenes
-        self.scenes = np.unique(self.pairs['seq_low'])  # low is unique enough
+        self.scenes = np.unique(self.pairs['seq_low'])
 
     def __len__(self):
         return len(self.pairs)
@@ -78,7 +65,7 @@ class BlendedMVS (BaseStereoViewDataset):
             views.append(dict(
                 img=image,
                 depthmap=depthmap,
-                camera_pose=camera_pose,  # cam2world
+                camera_pose=camera_pose,
                 camera_intrinsics=intrinsics,
                 dataset='Waymo',
                 label=osp.relpath(seq_path, self.ROOT),

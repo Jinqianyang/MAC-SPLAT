@@ -1,11 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed StaticThings3D
-# dataset at https://github.com/lmb-freiburg/robustmvd/
-# See datasets_preprocess/preprocess_staticthings3d.py
-# --------------------------------------------------------
 import os.path as osp
 import numpy as np
 
@@ -14,8 +6,6 @@ from src.mast3r_src.dust3r.dust3r.utils.image import imread_cv2
 
 
 class StaticThings3D (BaseStereoViewDataset):
-    """ Dataset of indoor scenes, 5 images each time
-    """
     def __init__(self, ROOT, *args, mask_bg='rand', **kwargs):
         self.ROOT = ROOT
         super().__init__(*args, **kwargs)
@@ -23,7 +13,6 @@ class StaticThings3D (BaseStereoViewDataset):
         assert mask_bg in (True, False, 'rand')
         self.mask_bg = mask_bg
 
-        # loading all pairs
         assert self.split is None
         self.pairs = np.load(osp.join(ROOT, 'staticthings_pairs.npy'))
 
@@ -58,9 +47,9 @@ class StaticThings3D (BaseStereoViewDataset):
             image, depthmap, intrinsics = self._crop_resize_if_necessary(image, depthmap, intrinsics, resolution, rng, info=(seq_path,cam,img))
 
             views.append(dict(
-                img = image, 
+                img = image,
                 depthmap = depthmap,
-                camera_pose = camera_pose, # cam2world
+                camera_pose = camera_pose,
                 camera_intrinsics = intrinsics,
                 dataset = 'StaticThings3D',
                 label = seq_path,

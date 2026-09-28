@@ -1,11 +1,3 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# Dataloader for preprocessed WayMo
-# dataset at https://github.com/waymo-research/waymo-open-dataset
-# See datasets_preprocess/preprocess_waymo.py
-# --------------------------------------------------------
 import os.path as osp
 import numpy as np
 
@@ -14,8 +6,6 @@ from src.mast3r_src.dust3r.dust3r.utils.image import imread_cv2
 
 
 class Waymo (BaseStereoViewDataset):
-    """ Dataset of outdoor street scenes, 5 images each time
-    """
 
     def __init__(self, *args, ROOT, **kwargs):
         self.ROOT = ROOT
@@ -27,7 +17,7 @@ class Waymo (BaseStereoViewDataset):
             self.scenes = data['scenes']
             self.frames = data['frames']
             self.inv_frames = {frame: i for i, frame in enumerate(data['frames'])}
-            self.pairs = data['pairs']  # (array of (scene_id, img1_id, img2_id)
+            self.pairs = data['pairs']
             assert self.pairs[:, 0].max() == len(self.scenes) - 1
 
     def __len__(self):
@@ -57,7 +47,7 @@ class Waymo (BaseStereoViewDataset):
             views.append(dict(
                 img=image,
                 depthmap=depthmap,
-                camera_pose=camera_pose,  # cam2world
+                camera_pose=camera_pose,
                 camera_intrinsics=intrinsics,
                 dataset='Waymo',
                 label=osp.relpath(seq_path, self.ROOT),
