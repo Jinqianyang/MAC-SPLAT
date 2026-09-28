@@ -1,4 +1,3 @@
-# utils/compute_ssim.py
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -37,21 +36,18 @@ def _ssim(img1, img2, window, window_size, channel, data_range=1.0, size_average
         ret = ssim_map.mean([1, 2, 3])
 
     if full:
-        # This is for a different functionality, we'll return ssim_map for our use case
-        # For simplicity, if full is True, we return the spatial map.
         return ssim_map
 
     return ret
 
 def compute_ssim(img1, img2, window_size=11, data_range=1.0, size_average=True, full=False):
-    # This function is now just a wrapper
     (_, channel, _, _) = img1.size()
     window = create_window(window_size, channel)
-    
+
     if img1.is_cuda:
         window = window.cuda(img1.get_device())
     window = window.type_as(img1)
-    
+
     return _ssim(img1, img2, window, window_size, channel, data_range, size_average, full)
 
 
@@ -64,20 +60,15 @@ class DSSIM(nn.Module):
         self.window = None
 
     def forward(self, img1, img2):
-        # DSSIM = (1 - SSIM) / 2
-        # We want the spatial map of losses, so size_average=False, and full=True (in our modified ssim)
         (_, channel, _, _) = img1.size()
         if self.channel is None or self.channel != channel:
             self.window = create_window(self.window_size, channel)
             self.channel = channel
-        
+
         window = self.window.to(img1.device).type_as(img1)
-        
-        # We need the spatial map of SSIM, so size_average=False
+
         ssim_map = _ssim(img1, img2, window, self.window_size, self.channel, self.data_range, size_average=False, full=True)
-        
-        # The result should be per-pixel dssim loss
+
         dssim_map = (1.0 - ssim_map) / 2.0
-        
-        # The reduction (mean or sum) will be handled outside in the main loss calculation
+
         return dssim_map
