@@ -1,18 +1,12 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# MASt3R model class
-# --------------------------------------------------------
 import torch
 import torch.nn.functional as F
 import os
 
 from mast3r.catmlp_dpt_head_with_dinov3 import mast3r_head_factory
 
-import mast3r.utils.path_to_dust3r  # noqa
-from dust3r.model import AsymmetricCroCo3DStereo  # noqa
-from dust3r.utils.misc import transpose_to_landscape  # noqa
+import mast3r.utils.path_to_dust3r
+from dust3r.model import AsymmetricCroCo3DStereo
+from dust3r.utils.misc import transpose_to_landscape
 
 
 inf = float('inf')
@@ -62,9 +56,7 @@ class AsymmetricMASt3R(AsymmetricCroCo3DStereo):
         self.conf_mode = conf_mode
         if self.desc_conf_mode is None:
             self.desc_conf_mode = conf_mode
-        # allocate heads
         self.downstream_head1 = mast3r_head_factory(head_type, output_mode, self, has_conf=bool(conf_mode), use_offsets=self.use_offsets, sh_degree=self.sh_degree)
         self.downstream_head2 = mast3r_head_factory(head_type, output_mode, self, has_conf=bool(conf_mode), use_offsets=self.use_offsets, sh_degree=self.sh_degree)
-        # magic wrapper
         self.head1 = transpose_to_landscape(self.downstream_head1, activate=landscape_only)
         self.head2 = transpose_to_landscape(self.downstream_head2, activate=landscape_only)

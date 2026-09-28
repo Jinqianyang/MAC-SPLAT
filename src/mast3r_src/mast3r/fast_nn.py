@@ -1,16 +1,10 @@
-# Copyright (C) 2024-present Naver Corporation. All rights reserved.
-# Licensed under CC BY-NC-SA 4.0 (non-commercial use only).
-#
-# --------------------------------------------------------
-# MASt3R Fast Nearest Neighbor
-# --------------------------------------------------------
 import torch
 import numpy as np
 import math
 from scipy.spatial import KDTree
 
-import mast3r.utils.path_to_dust3r  # noqa
-from dust3r.utils.device import to_numpy, todevice  # noqa
+import mast3r.utils.path_to_dust3r
+from dust3r.utils.device import to_numpy, todevice
 
 
 @torch.no_grad()
@@ -52,8 +46,7 @@ def bruteforce_reciprocal_nns(A, B, device='cuda', block_size=None, dist='l2'):
             A_i = A[i * block_size:(i + 1) * block_size]
             for j in range(number_of_iteration_B):
                 B_j = B[j * block_size:(j + 1) * block_size]
-                dists_blk = dist_func(A_i, B_j)  # A, B, 1
-                # dists_blk = dists[i * block_size:(i+1)*block_size, j * block_size:(j+1)*block_size]
+                dists_blk = dist_func(A_i, B_j)
                 min_A_i, argmin_A_i = argmin(dists_blk, dim=1)
                 min_B_j, argmin_B_j = argmin(dists_blk, dim=0)
 
@@ -87,7 +80,6 @@ class cdistMatcher:
 def merge_corres(idx1, idx2, shape1=None, shape2=None, ret_xy=True, ret_index=False):
     assert idx1.dtype == idx2.dtype == np.int32
 
-    # unique and sort along idx1
     corres = np.unique(np.c_[idx2, idx1].view(np.int64), return_index=ret_index)
     if ret_index:
         corres, indices = corres
@@ -127,7 +119,7 @@ def fast_reciprocal_NNs(pts1, pts2, subsample_or_initxy1=8, ret_xy=True, pixel_t
             y1 = y1.cpu().numpy()
         max_iter = 1
 
-    xy1 = np.int32(np.unique(x1 + W1 * y1))  # make sure there's no doublons
+    xy1 = np.int32(np.unique(x1 + W1 * y1))
     xy2 = np.full_like(xy1, -1)
     old_xy1 = xy1.copy()
     old_xy2 = xy2.copy()
@@ -148,18 +140,16 @@ def fast_reciprocal_NNs(pts1, pts2, subsample_or_initxy1=8, ret_xy=True, pixel_t
     basin = np.full((H1 * W1 + 1,), -1, dtype=np.int32) if ret_basin else None
 
     niter = 0
-    # n_notyet = [len(notyet)]
     while notyet.any():
         _, xy2[notyet] = to_numpy(tree2.query(pts1[xy1[notyet]], **matcher_kw))
         if not ret_basin:
-            notyet &= (old_xy2 != xy2)  # remove points that have converged
+            notyet &= (old_xy2 != xy2)
 
         _, xy1[notyet] = to_numpy(tree1.query(pts2[xy2[notyet]], **matcher_kw))
         if ret_basin:
             basin[old_xy1[notyet]] = xy1[notyet]
-        notyet &= (old_xy1 != xy1)  # remove points that have converged
+        notyet &= (old_xy1 != xy1)
 
-        # n_notyet.append(notyet.sum())
         niter += 1
         if niter >= max_iter:
             break
@@ -167,21 +157,17 @@ def fast_reciprocal_NNs(pts1, pts2, subsample_or_initxy1=8, ret_xy=True, pixel_t
         old_xy2[:] = xy2
         old_xy1[:] = xy1
 
-    # print('notyet_stats:', ' '.join(map(str, (n_notyet+[0]*10)[:max_iter])))
 
     if pixel_tol > 0:
-        # in case we only want to match some specific points
-        # and still have some way of checking reciprocity
         old_yx1 = np.unravel_index(old_xy1, (H1, W1))[0].base
         new_yx1 = np.unravel_index(xy1, (H1, W1))[0].base
         dis = np.linalg.norm(old_yx1 - new_yx1, axis=-1)
         converged = dis < pixel_tol
         if not isinstance(subsample_or_initxy1, int):
-            xy1 = old_xy1  # replace new points by old ones
+            xy1 = old_xy1
     else:
-        converged = ~notyet  # converged correspondences
+        converged = ~notyet
 
-    # keep only unique correspondences, and sort on xy1
     xy1, xy2 = merge_corres(xy1[converged], xy2[converged], (H1, W1), (H2, W2), ret_xy=ret_xy)
     if ret_basin:
         return xy1, xy2, basin
@@ -194,10 +180,8 @@ def extract_correspondences_nonsym(A, B, confA, confB, subsample=8, device=None,
     else:
         opt = dict(device=device, dist='dot', block_size=2**13)
 
-    # matching the two pairs
     idx1 = []
     idx2 = []
-    # merge corres from opposite pairs
     HA, WA = A.shape[:2]
     HB, WB = B.shape[:2]
     if pixel_tol == 0:
