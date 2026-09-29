@@ -1,10 +1,6 @@
 Source notices
 ==============
 
-Copyright notices, license terms, and source references retained from the source files.
-Source comments and docstrings were removed; existing license terms still apply.
-The component LICENSE and NOTICE files and the license texts in this directory are retained.
-
 Files:
   src/mast3r_src/dust3r/croco/models/blocks.py
   src/mast3r_src/dust3r/croco/models/croco.py
